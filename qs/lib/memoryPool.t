@@ -52,10 +52,10 @@ terra MemoryPool:__init() : {}
 	self.maxAlloced = 0U
 end
 
-terra MemoryPool:__destruct()
+terra MemoryPool:__destruct() : {}
 	-- Free all blocks
 	for i=0,self.blocks_:size() do
-		if self.blocks_(i) then
+		if self.blocks_(i) ~= nil then
 			S.free(self.blocks_(i))
 		end
 	end
@@ -116,7 +116,7 @@ end
 terra MemoryPool:freeAll()
 	-- Free all but the first block
 	for i=1,self.blocks_:size() do
-		if self.blocks_(i) then
+		if self.blocks_(i) ~= nil then
 			S.free(self.blocks_(i))
 		end
 	end
