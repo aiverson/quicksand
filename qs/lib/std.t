@@ -176,6 +176,9 @@ end)
 -- destruct will call destruct on child nodes
 function S.Object(T)
     --fill in special methods/macros
+    terra T:destruct() : {}
+        generatedtor(@self)
+    end
     terra T:delete() : {}
         self:destruct()
         C.free(self)
@@ -191,9 +194,6 @@ function S.Object(T)
             &t
         end
     end)
-    terra T:destruct() : {}
-        generatedtor(@self)
-    end
     T.methods.init = macro(function(self, ...)
         local args = {...}
         return quote
@@ -226,13 +226,10 @@ function S.Vector(T,debug)
     Vector.isstdvector = true
     Vector.type = T
     local assert = debug and S.assert or macro(function() return quote end end)
-    terra Vector:__init() : {}
+    Vector.methods.__init = terralib.overloadedfunction("__init")
+    Vector.methods.__init:adddefinition(terra(self: &Vector) : {}
         self._data,self._size,self._capacity = nil,0,0
-    end
-    terra Vector:__init(cap : uint64) : {}
-        self:__init()
-        self:reserve(cap)
-    end
+    end)
     terra Vector:reserve(cap : uint64)
         if cap > 0 and cap > self._capacity then
             var oc = self._capacity
@@ -245,10 +242,23 @@ function S.Vector(T,debug)
             self._data = [&T](S.realloc(self._data,sizeof(T)*self._capacity))
         end
     end
+    Vector.methods.__init:adddefinition(terra (self: &Vector, cap : uint64) : {}
+        self:__init()
+        self:reserve(cap)
+    end)
     terra Vector:resize(size: uint64)
         self:reserve(size)
         self._size = size
     end
+
+    terra Vector:clear() : {}
+        assert(self._capacity >= self._size)
+        for i = 0ULL,self._size do
+            S.rundestructor(self._data[i])
+        end
+        self._size = 0
+    end
+
     terra Vector:__destruct()
         self:clear()
         if self._data ~= nil then
@@ -259,7 +269,7 @@ function S.Vector(T,debug)
     end
     terra Vector:size() return self._size end
     
-    terra Vector:get(i : uint64)
+    terra Vector:get(i : uint64) : &T
         assert(i < self._size) 
         return &self._data[i]
     end
@@ -267,7 +277,8 @@ function S.Vector(T,debug)
         return `@self:get(idx)
     end)
     
-    terra Vector:insert(idx : uint64, N : uint64, v : T) : {}
+    Vector.methods.insert = terralib.overloadedfunction("insert")
+    Vector.methods.insert:adddefinition(terra (self : &Vector, idx : uint64, N : uint64, v : T) : {}
         assert(idx <= self._size)
         self._size = self._size + N
         self:reserve(self._size)
@@ -283,19 +294,20 @@ function S.Vector(T,debug)
         for i = 0ULL,N do
             self._data[idx + i] = v
         end
-    end
-    terra Vector:insert(idx : uint64, v : T) : {}
+    end)
+    Vector.methods.insert:adddefinition(terra (self : &Vector, idx : uint64, v : T) : {}
         return self:insert(idx,1,v)
-    end
-    terra Vector:insert(v : T) : {}
+    end)
+    Vector.methods.insert:adddefinition(terra (self : &Vector, v : T) : {}
         return self:insert(self._size,1,v)
-    end
-    terra Vector:insert() : &T
+    end)
+    Vector.methods.insert:adddefinition(terra (self : &Vector) : &T
         self._size = self._size + 1
         self:reserve(self._size)
         return self:get(self._size - 1)
-    end
-    terra Vector:remove(idx : uint64) : T
+    end)
+    Vector.methods.remove = terralib.overloadedfunction("remove")
+    Vector.methods.remove:adddefinition(terra (self : &Vector, idx : uint64) : T
         assert(idx < self._size)
         var v = self._data[idx]
         self._size = self._size - 1
@@ -303,19 +315,11 @@ function S.Vector(T,debug)
             self._data[i] = self._data[i + 1]
         end
         return v
-    end
-    terra Vector:remove() : T
+    end)
+    Vector.methods.remove:adddefinition(terra (self: &Vector) : T
         assert(self._size > 0)
         return self:remove(self._size - 1)
-    end
-
-    terra Vector:clear() : {}
-        assert(self._capacity >= self._size)
-        for i = 0ULL,self._size do
-            S.rundestructor(self._data[i])
-        end
-        self._size = 0
-    end
+    end)
 
     terra Vector:__copy(other: &Vector) : {}
         self:__init(other:size())
@@ -344,7 +348,9 @@ function S.Vector(T,debug)
             end
         end
     end
-    
+
+    S.Object(Vector)
+
     return Vector
 end
 
