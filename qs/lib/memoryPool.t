@@ -89,7 +89,8 @@ terra MemoryPool:__move_to_next_block(len: uint)
 	return result
 end
 
-terra MemoryPool:alloc(len: uint)
+MemoryPool.methods.alloc = terralib.overloadedfunction("alloc", {MemoryPool.methods.alloc})
+MemoryPool.methods.alloc:adddefinition(terra (self: &MemoryPool, len: uint)
 	-- Typically, just return and increment the next location.
 	var result = self.next_loc_
 	self.next_loc_ = self.next_loc_ + len
@@ -99,7 +100,7 @@ terra MemoryPool:alloc(len: uint)
 	end
 	self.currAlloced = self.currAlloced + len
 	return result
-end
+end)
 -- MemoryPool.methods.alloc:setinlined(true)
 
 terra MemoryPool:recoverAll()
@@ -138,10 +139,3 @@ MemoryPool.methods.maxAmountAllocated:setinlined(true)
 
 
 return MemoryPool
-
-
-
-
-
-
-
